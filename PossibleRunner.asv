@@ -1,0 +1,93 @@
+
+function PossibleRunner(speedmult)
+load('trajPos','rx', 'ry');
+
+%convert the reference frame cuz we're dumb
+x_pos = -ry;
+y_pos = -rx;
+
+
+pos = [x_pos; y_pos];
+dpos = diff(pos);
+T_hats = [];
+linSpeeds = [];
+
+for i = 1:length(pos)-1
+    T = [diff([pos(1,i),pos(1,i+1)]), diff([pos(2,i),pos(2,i+1)])];
+    T_norm = norm([diff([pos(1,i),pos(1,i+1)]), diff([pos(2,i),pos(2,i+1)])]);
+    T_hats = [T_hats; T/T_norm];
+    linSpeeds = [linSpeeds; norm(dpos(:,i))];
+end
+
+linSpeeds = linSpeeds* speedmult; %
+
+dT_hats = [diff(T_hats); [0,1]];
+
+omega = cross([T_hats, zeros(length(pos)-1,1)],[dT_hats,zeros(length(pos)-1,1)]);
+
+d=.235;
+
+VR = linSpeeds - omega(:,3) .* (d/2);
+VL = linSpeeds + omega(:,3) .* (d/2);
+
+pub = rospublisher('/raw_vel');
+message = rosmessage(pub);
+
+placeNeato(0,0,1,0);
+pause(5)
+
+times = .1 ./ linSpeeds(2:25);
+rosrates = [];
+time_freq = [];
+for j = 1:length(times)
+    freq = 1/times(j);
+    time_freq = [time_freq freq];
+end
+
+r = rosrate(1);
+reset(r);
+
+%times
+
+%time_freq
+
+for i = 1:length(time_freq)
+    %sending speeds to the robot
+    %pause(pausetime);
+    r = rosrate(time_freq(i));
+    message.Data = [VL(i,:), VR(i,:)];
+    send(pub, message);
+    waitfor(r);
+    %disp(i);
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%find linear and angular velocity
+% linear_velocity = (VL+VR)./2;
+% omega = (VR-VL)./d;
+
+%reconstruct the path
+% time = linspace(0,10,10);
+% dt = diff(time);
+% r = zeros(length(time),2);
+% theta = zeros(length(time),1);
+% 
+% for n=1:length(dt)
+%     r(n+1,1)=r(n,1)+linear_velocity(n)*cos(theta(n))*dt(n);
+%     r(n+1,2)=r(n,2)+linear_velocity(n)*sin(theta(n))*dt(n);
+%     theta(n+1) = theta(n) + omega(n)*dt(n);
+% end
+
+%plot predicted vs. measured robot path
+%figure(5)
+%hold on
+%plot(r(:,1),r(:,2),'--') % plot measured
+%hold off
+%axis equal
+%xlabel('x position [m]')
+%ylabel('y position [m]')
+%title('Predicted Positon and Tangent Vectors vs. Measured Position and Tangent Vectors')
+end
+
